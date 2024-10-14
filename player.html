@@ -63,37 +63,13 @@
 </head>
 <body>
     <div id="videoList" class="container"></div>
-
+    
     <script>
-        const CLOUDFLARE_ACCOUNT_ID = 'T0b76bfb01fde3bd51432989dcbfb9d06';  // Reemplaza con tu Account ID
-        const CLOUDFLARE_API_KEY = 'Ta1d6b4ad07aa6019e6f6558451697a37';   // Reemplaza con tu API Key
-        const CLOUDFLARE_API_BASE_URL = `https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/media`;
-
-        let videoUrls = [];
+        const videoUrls = [
+            // Añade aquí los enlaces de los videos subidos
+        ];
+        
         let currentVideoIndex = 0;
-
-        async function loadVideos() {
-            const videoList = document.getElementById("videoList");
-            videoList.innerHTML = "";
-            
-            try {
-                const response = await fetch(CLOUDFLARE_API_BASE_URL, {
-                    method: 'GET',
-                    headers: {
-                        'Authorization': `Bearer ${CLOUDFLARE_API_KEY}`
-                    }
-                });
-                const data = await response.json();
-                if (data.success) {
-                    videoUrls = data.result.map(video => video.playback.hls);
-                    playVideo();
-                } else {
-                    console.error("Error al obtener las URLs de los videos: ", data.errors);
-                }
-            } catch (error) {
-                console.error("Error al listar los videos: ", error);
-            }
-        }
 
         function playVideo() {
             if (videoUrls.length === 0) return;
@@ -111,7 +87,7 @@
             videoList.appendChild(videoElement);
         }
 
-        window.onload = loadVideos;
+        window.onload = playVideo;
     </script>
 </body>
 </html>
