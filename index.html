@@ -4,7 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="style.css">
+    <link rel="manifest" href="/manifest.json">
     <title>Cargar Videos</title>
+    <!-- Incluir jQuery -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 </head>
 <body>
     <h1>Cargar Videos</h1>
@@ -14,8 +17,12 @@
         <button onclick="uploadVideos()">Subir Videos</button>
         <button class="btn-secondary" onclick="goToPlayer()">Ir al Reproductor</button>
     </div>
-
     <script>
+        // Configuración de Cloudflare (Reemplaza con tu configuración real)
+        const CLOUDFLARE_ACCOUNT_ID = 'T0b76bfb01fde3bd51432989dcbfb9d06';
+        const CLOUDFLARE_API_KEY = 'Ta1d6b4ad07aa6019e6f6558451697a37';
+        const CLOUDFLARE_API_BASE_URL = `https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/media`;
+
         function uploadVideos() {
             const files = document.getElementById("videoFiles").files;
             const progressBar = document.getElementById("progressBar");
@@ -30,28 +37,59 @@
                 return;
             }
 
-            const formData = new FormData();
             for (let i = 0; i < files.length; i++) {
-                formData.append('file', files[i]);
-            }
+                const file = files[i];
+                const formData = new FormData();
+                formData.append('file', file);
 
-            fetch('/upload', {
-                method: 'POST',
-                body: formData,
-            })
-            .then(response => response.text())
-            .then(data => {
-                console.log('Archivo subido:', data);
-            })
-            .catch(error => {
-                console.error('Error al subir el archivo:', error);
-            });
+                fetch(CLOUDFLARE_API_BASE_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${CLOUDFLARE_API_KEY}`
+                    },
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        const videoUrl = data.result.playback.hls;
+                        console.log(`Video ${file.name} subido correctamente.`);
+
+                        // Enviar mensaje al Service Worker para cachear el video
+                        if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+                            navigator.serviceWorker.controller.postMessage({
+                                action: 'cacheVideo',
+                                url: videoUrl
+                            });
+                            console.log(`Solicitud enviada al Service Worker para cachear: ${videoUrl}`);
+                        }
+
+                        // Actualizar el progreso de la barra
+                        progressBar.value = (i + 1) / files.length * 100;
+                    } else {
+                        console.error("Error al subir el video: ", data.errors);
+                    }
+                })
+                .catch(error => {
+                    console.error("Error al subir el video: ", error);
+                });
+            }
         }
 
         function goToPlayer() {
             window.location.href = "player.html";
         }
+
+        // Registro del Service Worker
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/service-worker.js')
+                .then((registration) => {
+                    console.log('Service Worker registrado con éxito:', registration);
+                })
+                .catch((error) => {
+                    console.log('Error al registrar el Service Worker:', error);
+                });
+        }
     </script>
 </body>
 </html>
-
