@@ -5,23 +5,48 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="style.css">
     <link rel="manifest" href="/manifest.json">
-    <title>Cargar Videos</title>
+    <title>Cargar Videos a Google Drive</title>
     <!-- Incluir jQuery -->
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <!-- Cargar la API de Google -->
+    <script src="https://apis.google.com/js/api.js"></script>
 </head>
 <body>
     <h1>Cargar Videos</h1>
     <div class="container">
         <input type="file" id="videoFiles" multiple accept="video/*">
         <progress id="progressBar" value="0" max="100"></progress>
-        <button onclick="uploadVideos()">Subir Videos</button>
+        <button onclick="handleAuthClick()">Subir Videos</button>
         <button class="btn-secondary" onclick="goToPlayer()">Ir al Reproductor</button>
     </div>
+
     <script>
-        // Configuración de Cloudflare (Reemplaza con tu configuración real)
-        const CLOUDFLARE_ACCOUNT_ID = 'T0b76bfb01fde3bd51432989dcbfb9d06';
-        const CLOUDFLARE_API_KEY = 'Ta1d6b4ad07aa6019e6f6558451697a37';
-        const CLOUDFLARE_API_BASE_URL = `https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/media`;
+        // Configuración de la API de Google Drive
+        const CLIENT_ID = 'TU_CLIENT_ID';
+        const API_KEY = 'TU_API_KEY';
+        const SCOPES = 'https://www.googleapis.com/auth/drive.file';
+
+        function handleClientLoad() {
+            gapi.load('client:auth2', initClient);
+        }
+
+        function initClient() {
+            gapi.client.init({
+                apiKey: API_KEY,
+                clientId: CLIENT_ID,
+                scope: SCOPES
+            }).then(() => {
+                console.log('Google API client initialized.');
+            }, (error) => {
+                console.error('Error initializing Google API client', error);
+            });
+        }
+
+        function handleAuthClick() {
+            gapi.auth2.getAuthInstance().signIn().then(() => {
+                uploadVideos();
+            });
+        }
 
         function uploadVideos() {
             const files = document.getElementById("videoFiles").files;
@@ -32,47 +57,35 @@
                 return;
             }
 
-            if (files.length > 10) {
-                alert("Solo puedes subir hasta 10 videos.");
-                return;
-            }
-
             for (let i = 0; i < files.length; i++) {
                 const file = files[i];
-                const formData = new FormData();
-                formData.append('file', file);
+                const metadata = {
+                    'name': file.name,
+                    'mimeType': file.type
+                };
 
-                fetch(CLOUDFLARE_API_BASE_URL, {
+                const accessToken = gapi.auth2.getAuthInstance().currentUser.get().getAuthResponse().access_token;
+                const form = new FormData();
+                form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+                form.append('file', file);
+
+                fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
                     method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${CLOUDFLARE_API_KEY}`
-                    },
-                    body: formData
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        const videoUrl = data.result.playback.hls;
-                        console.log(`Video ${file.name} subido correctamente.`);
+                    headers: new Headers({ 'Authorization': 'Bearer ' + accessToken }),
+                    body: form
+                }).then(response => response.json()).then(fileData => {
+                    const fileId = fileData.id;
+                    const videoUrl = `https://drive.google.com/uc?export=download&id=${fileId}`;
+                    console.log(`Video subido correctamente: ${videoUrl}`);
 
-                        // Enviar mensaje al Service Worker para cachear el video
-                        if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-                            navigator.serviceWorker.controller.postMessage({
-                                action: 'cacheVideo',
-                                url: videoUrl
-                            });
-                            console.log(`Solicitud enviada al Service Worker para cachear: ${videoUrl}`);
-                        }
-
-                        // Actualizar el progreso de la barra
-                        progressBar.value = (i + 1) / files.length * 100;
-                    } else {
-                        console.error("Error al subir el video: ", data.errors);
-                    }
-                })
-                .catch(error => {
-                    console.error("Error al subir el video: ", error);
+                    // Aquí puedes enviar el enlace del video al Service Worker si fuera necesario
+                    // O simplemente guardarlo en una base de datos o mostrarlo al usuario
+                }).catch(error => {
+                    console.error('Error al subir el video:', error);
                 });
+
+                // Actualizar el progreso de la barra
+                progressBar.value = (i + 1) / files.length * 100;
             }
         }
 
@@ -80,16 +93,8 @@
             window.location.href = "player.html";
         }
 
-        // Registro del Service Worker
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('/service-worker.js')
-                .then((registration) => {
-                    console.log('Service Worker registrado con éxito:', registration);
-                })
-                .catch((error) => {
-                    console.log('Error al registrar el Service Worker:', error);
-                });
-        }
+        // Cargar el cliente de la API de Google
+        handleClientLoad();
     </script>
 </body>
 </html>
